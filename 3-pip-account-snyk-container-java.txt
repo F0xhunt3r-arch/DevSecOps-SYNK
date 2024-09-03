@@ -1,0 +1,80 @@
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Default_Maven'
+    }
+    
+   environment {
+        // Usa la variable de entorno `JAVA_HOME` ya configurada en Jenkins
+        JAVA_HOME = "${env.JAVA_HOME}"
+    }
+
+    stages {
+        stage('Repository SCM') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Stywar/devsecops_security'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                bat 'docker build -t ms-account-snyk .'
+            }
+        }
+        
+      stage('Scan Test Snyk') {
+            steps {
+               script{
+                   snykSecurity severity: 'critical', snykInstallation: 'snyk_container', snykTokenId: 'snyk-api-token-id'
+                   
+                   def variable = bat(
+                       script:'set JAVA_HOME=%JAVA_HOME% snyk container test ms-account-snyk --severity-threshold=critical',returnStatus: true
+                       )
+                    echo "error code = ${variable}"
+                    if(variable !=0) {
+                     echo "Alert for vulnerability found"   
+                    }
+                       
+               }
+            }
+        }
+        
+        stage('Monitor Snyk') {
+            steps {
+               script{
+                   // Monitorea la imagen Docker con Snyk
+                    def monitorResult = bat(
+                        script: 'set JAVA_HOME=%JAVA_HOME%  snyk container monitor ms-account-snyk',
+                        returnStatus: true
+                    )
+                    echo "Monitor error code = ${monitorResult}"
+                    if (monitorResult != 0) {
+                        echo "Alert for monitoring failed"
+                    } else {
+                        echo "Monitoring completed successfully"
+                    }
+                       
+               }
+            }
+        } 
+        
+        
+        
+    }
+    
+    /// post
+    post {
+        always {
+            // Archiva los resultados si hay un reporte generado
+            archiveArtifacts artifacts: '**/snyk-report.json', allowEmptyArchive: true
+        }
+        success {
+            echo 'Container security scan completed successfully!'
+        }
+        failure {
+            echo 'Container security scan failed! Check Snyk results.'
+        }
+    }
+   
+}
