@@ -1,0 +1,48 @@
+// se lo conoce como umbrall
+pipeline {
+    agent any
+
+    tools {
+        maven 'Default_Maven'
+    }
+
+    environment {
+        JAVA_OPTS = '-Dnvd.api.delay=12000'  // Configura el retraso para las solicitudes de la API de NVD
+    }
+
+    stages {
+        stage('Repository SCM') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Stywar/devsecops_security'
+            }
+        }
+
+        stage('Dependency-Check Analysis') {
+            steps {
+                dependencyCheck additionalArguments: '''
+                    -o './'
+                    -s './'
+                    -f 'ALL'
+                    --prettyPrint
+                ''', odcInstallation: 'OWASP_polyglot'
+                
+                dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+                
+                // Publish the report and fail the build on critical issues
+                script {
+                    def report = readFile('dependency-check-report.xml')
+                    def hasCriticalIssues = report.contains('Critical')
+                    if (hasCriticalIssues) {
+                        error "Build failed due to critical vulnerabilities in Dependency-Check report."
+                    }
+                }
+            }
+        }
+
+        // stage('Build') {
+        //     steps {
+        //         sh "${tool 'Default_Maven'}/bin/mvn clean install"
+        //     }
+        // }
+    }
+}

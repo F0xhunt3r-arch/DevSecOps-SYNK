@@ -1,0 +1,29 @@
+pipeline {
+    agent any
+    
+     tools {
+       
+        maven 'Default_Maven'
+    }
+
+    stages {
+        stage('Repository SCM') {
+            steps {
+               git branch: 'main' , url: 'https://github.com/Stywar/devsecops_security'
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    def mvn = tool 'Default_Maven' // Asegúrate de que 'Default Maven' esté configurado en Jenkins
+                    withSonarQubeEnv('serversonar') { // Usa el nombre de la instancia SonarQube configurada
+                        bat "\"${mvn}\\bin\\mvn.cmd\" clean verify sonar:sonar -Dsonar.projectKey=JAVA_DEVSECOPS -Dsonar.projectName='JAVA_DEVSECOPS'"
+                    }
+                }
+            }
+         }
+       
+    }
+        
+}
