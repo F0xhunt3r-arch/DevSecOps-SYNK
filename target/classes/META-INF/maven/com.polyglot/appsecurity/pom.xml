@@ -42,7 +42,12 @@
 			<artifactId>jjwt-jackson</artifactId>
 			<version>0.11.1</version>
 			<scope>runtime</scope>
-		</dependency>		
+		</dependency>
+		<dependency>
+		    <groupId>org.springdoc</groupId>
+		    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+		    <version>2.2.0</version> <!-- Ajusta esta versión según tu versión de Spring Boot -->
+		</dependency>	
 
 	</dependencies>
 
