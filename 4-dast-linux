@@ -111,9 +111,9 @@ pipeline {
             steps {
                 script {
                     sh """
-                        docker cp owasp:/zap/wrk/OWASP-ZAP-Report.html ${WORKSPACE}/OWASP-ZAP-Report.html
-                        docker cp owasp:/zap/wrk/OWASP-ZAP-Report.xml ${WORKSPACE}/OWASP-ZAP-Report.xml
-                        docker cp owasp:/zap/wrk/api-scan-report.html ${WORKSPACE}/api-scan-report.html
+                        docker cp owasp:/zap/wrk/OWASP-ZAP-Report.html ${env.WORKSPACE}/OWASP-ZAP-Report.html
+                        docker cp owasp:/zap/wrk/OWASP-ZAP-Report.xml ${env.WORKSPACE}/OWASP-ZAP-Report.xml
+                        docker cp owasp:/zap/wrk/api-scan-report.html ${env.WORKSPACE}/api-scan-report.html
                     """
                 }
             }
