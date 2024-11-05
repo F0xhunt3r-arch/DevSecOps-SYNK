@@ -1,0 +1,134 @@
+def scan_type
+def target
+def api_format = 'openapi'  // Cambia esto al formato correcto según tu archivo API
+
+pipeline {
+    agent any
+    parameters {
+        choice(choices: ["Baseline", "APIS", "Full"],
+               description: 'Type of scan to perform inside the container',
+               name: 'SCAN_TYPE')
+
+        string(defaultValue: "https://pokeapi.co/api/v2/pokemon/ditto",
+               description: 'Target URL to scan',
+               name: 'TARGET')
+
+        booleanParam(defaultValue: true,
+                     description: 'Generate report?',
+                     name: 'GENERATE_REPORT')
+    }
+    
+    stages {
+        stage('Pipeline Info') {
+            steps {
+                script {
+                    echo "<--Parameter Initialization-->"
+                    echo """
+                    The current parameters are:
+                        Scan Type: ${params.SCAN_TYPE}
+                        Target: ${params.TARGET}
+                        Generate Report: ${params.GENERATE_REPORT}
+                    """
+                }
+            }
+        }
+
+        stage('Setting up OWASP ZAP Docker container') {
+            steps {
+                script {
+                    echo "Pulling the latest OWASP ZAP Docker container --> Start"
+                    sh 'docker pull ghcr.io/zaproxy/zaproxy:weekly'
+                    echo "Pulling complete --> End"
+                    echo "Starting OWASP ZAP container --> Start"
+                    sh """
+                        docker run -dt --name owasp \
+                        ghcr.io/zaproxy/zaproxy:weekly \
+                        /bin/bash
+                    """
+                }
+            }
+        }
+
+        stage('Prepare working directory') {
+            when {
+                expression { params.GENERATE_REPORT }
+            }
+            steps {
+                script {
+                    sh """
+                        docker exec owasp \
+                        mkdir -p /zap/wrk
+                    """
+                }
+            }
+        }
+
+        stage('Scanning target on OWASP ZAP container') {
+            steps {
+                script {
+                    scan_type = "${params.SCAN_TYPE}"
+                    target = "${params.TARGET}"
+
+                    echo "Scan Type: $scan_type"
+                    echo "Target URL: $target"
+
+                    if (scan_type == "Baseline") {
+                        sh """
+                            docker exec owasp \
+                            zap-baseline.py -t $target -x /zap/wrk/OWASP-ZAP-Report.html -I
+                        """
+                    } else if (scan_type == "APIS") {
+                        sh """
+                            docker exec owasp \
+                            zap-api-scan.py -t $target -f $api_format -g api-scan.conf -x /zap/wrk/OWASP-ZAP-Report.xml -r api-scan-report.html -I
+                        """
+                    } else if (scan_type == "Full") {
+                        sh """
+                            docker exec owasp \
+                            zap-full-scan.py -t $target -x /zap/wrk/OWASP-ZAP-Report.xml -r api-scan-report.html -I
+                        """
+                    } else {
+                        echo "Invalid scan type selected."
+                    }
+                }
+            }
+        }
+        
+        stage('Verificar archivos generados') {
+            steps {
+                script {
+                    sh '''
+                        docker exec owasp ls -la /zap/wrk/
+                    '''
+                }
+            }
+        }
+
+        stage('Copy Report to Workspace') {
+            when {
+                expression { params.GENERATE_REPORT }
+            }
+            steps {
+                script {
+                    sh """
+                        docker cp owasp:/zap/wrk/OWASP-ZAP-Report.html ${WORKSPACE}/OWASP-ZAP-Report.html
+                        docker cp owasp:/zap/wrk/OWASP-ZAP-Report.xml ${WORKSPACE}/OWASP-ZAP-Report.xml
+                        docker cp owasp:/zap/wrk/api-scan-report.html ${WORKSPACE}/api-scan-report.html
+                    """
+                }
+            }
+        }
+        
+        
+    }
+
+    post {
+        always {
+            echo "Cleaning up: Stopping and removing OWASP ZAP container"
+            sh """
+                docker stop owasp
+                docker rm owasp
+            """
+        }
+    }
+}
